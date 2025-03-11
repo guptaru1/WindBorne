@@ -2,7 +2,7 @@ import torch
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
-access_token = "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"
+
 llama_model = "meta-llama/Llama-2-7b-chat-hf"
 
 #notebook_login()
