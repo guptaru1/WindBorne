@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather Forecast</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .temp-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .temp-card {
+            background: #333;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+        .temp-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff7f0e;
+            margin-bottom: 5px;
+        }
+        .date-value {
+            font-size: 14px;
+            color: #aaa;
+        }
+        .chart-container {
+            background: #333;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .air-quality-section {
+            margin-top: 2rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .air-quality-box {
+            background: #333;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 25%;
+            margin: 20px 0;
+            color: white;
+        }
+        .co2-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .co2-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .co2-status {
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+        .co2-legend {
+            border-top: 1px solid #555;
+            padding-top: 15px;
+        }
+        .legend-item {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+        }
+        .dot {
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .pre-industrial { background-color: #90EE90; }
+        .normal { background-color: #FFD700; }
+        .poor { background-color: #FFA500; }
+        .very-poor { background-color: #FF6B6B; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Map container -->
+        <div id="map"></div>
+
+        <!-- Temperature grid -->
+        <div class="temp-grid">
+            {% for i in range(7) %}
+                {% if i < weather_data.temperature|length %}
+                <div class="temp-card">
+                    <div class="temp-value">{{ "%.1f"|format(weather_data.temperature[i]) }}°C</div>
+                    <div class="date-value">{{ weather_data.time[i] }}</div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- First the charts -->
+        <div class="charts-row">
+            <div class="chart-container">
+                <div id="windChart"></div>
+            </div>
+            <div class="chart-container">
+                <div id="pressureChart"></div>
+            </div>
+        </div>
+
+        <!-- Then the air quality box with margin-top -->
+        <div class="air-quality-box" style="margin-top: 25%;">
+            <h3>Current Air Quality</h3>
+            <div class="co2-display">
+                <div class="co2-value" id="co2Value">
+                    {{ air_quality_data.carbon_dioxide[0] }} ppm
+                </div>
+                <div class="co2-status" id="co2Status">
+                    <!-- Status will be set by JS -->
+                </div>
+            </div>
+            <div class="co2-legend">
+                <div class="legend-item">
+                    <span class="dot pre-industrial"></span>
+                    &lt; 400 ppm: Pre-industrial levels
+                </div>
+                <div class="legend-item">
+                    <span class="dot normal"></span>
+                    400-1000 ppm: Normal levels
+                </div>
+                <div class="legend-item">
+                    <span class="dot poor"></span>
+                    1000-2000 ppm: Poor air quality
+                </div>
+                <div class="legend-item">
+                    <span class="dot very-poor"></span>
+                    &gt; 2000 ppm: Very poor air quality
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([{{ latitude }}, {{ longitude }}], 8);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Add balloon trajectory
+        const balloonPath = {{ balloon_history|tojson }};
+        if (balloonPath && balloonPath.length > 0) {
+            // Create line coordinates
+            const pathCoords = balloonPath.map(point => [point.latitude, point.longitude]);
+            
+            // Draw path line
+            L.polyline(pathCoords, {
+                color: '#ff4444',
+                weight: 3,
+                opacity: 0.8
+            }).addTo(map);
+
+            // Add markers for start and current positions
+            const startPoint = pathCoords[0];
+            const currentPoint = pathCoords[pathCoords.length - 1];
+
+            // Start marker (green)
+            L.circleMarker(startPoint, {
+                radius: 8,
+                fillColor: '#00ff00',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).bindPopup(`Start Position (${balloonPath[0].hour} hours ago)`).addTo(map);
+
+            // Current marker (red)
+            L.circleMarker(currentPoint, {
+                radius: 8,
+                fillColor: '#ff0000',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).bindPopup('Current Position').addTo(map);
+
+            // Add altitude markers along the path
+            balloonPath.forEach((point, index) => {
+                if (index !== 0 && index !== balloonPath.length - 1) {  // Skip start and end points
+                    L.circleMarker([point.latitude, point.longitude], {
+                        radius: 4,
+                        fillColor: '#ffffff',
+                        color: '#fff',
+                        weight: 1,
+                        opacity: 0.6,
+                        fillOpacity: 0.6
+                    }).bindPopup(`Hour: -${point.hour}<br>Altitude: ${point.altitude.toFixed(1)}m`).addTo(map);
+                }
+            });
+
+            // Fit map to show entire path
+            map.fitBounds(pathCoords);
+        } else {
+            // If no path data, just show current location
+            L.marker([{{ latitude }}, {{ longitude }}])
+                .addTo(map)
+                .bindPopup('Selected Location')
+                .openPopup();
+        }
+
+        // Wind Speed Chart
+        const windData = {
+            x: {{ weather_data.time|tojson }},
+            y: {{ weather_data.wind_speed|tojson }},
+            type: 'scatter',
+            name: 'Wind Speed',
+            line: { color: '#2ecc71' }
+        };
+
+        Plotly.newPlot('windChart', [windData], {
+            title: 'Wind Speed (m/s)',
+            paper_bgcolor: '#333',
+            plot_bgcolor: '#333',
+            font: { color: '#fff' },
+            xaxis: { gridcolor: '#666' },
+            yaxis: { gridcolor: '#666' }
+        });
+
+        // Pressure Chart
+        const pressureData = {
+            x: {{ weather_data.time|tojson }},
+            y: {{ weather_data.pressure|tojson }},
+            type: 'scatter',
+            name: 'Pressure',
+            line: { color: '#3498db' }
+        };
+
+        Plotly.newPlot('pressureChart', [pressureData], {
+            title: 'Pressure (hPa)',
+            paper_bgcolor: '#333',
+            plot_bgcolor: '#333',
+            font: { color: '#fff' },
+            xaxis: { gridcolor: '#666' },
+            yaxis: { gridcolor: '#666' }
+        });
+
+        // Create air quality chart
+        const airQualityCtx = document.getElementById('airQualityChart').getContext('2d');
+        new Chart(airQualityCtx, {
+            type: 'line',
+            data: {
+                labels: {{ air_quality_data.time | tojson }},
+                datasets: [{
+                    label: 'Carbon Dioxide (ppm)',
+                    data: {{ air_quality_data.carbon_dioxide | tojson }},
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: 'CO2 Level (ppm)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Carbon Dioxide Levels'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `CO2: ${context.parsed.y} ppm`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // CO2 Status
+        document.addEventListener('DOMContentLoaded', function() {
+            const co2Value = {{ air_quality_data.carbon_dioxide[0] }};
+            const statusElement = document.getElementById('co2Status');
+            
+            let status, color;
+            if (co2Value < 400) {
+                status = "Pre-industrial levels";
+                color = "#90EE90";
+            } else if (co2Value < 1000) {
+                status = "Normal levels";
+                color = "#FFD700";
+            } else if (co2Value < 2000) {
+                status = "Poor air quality";
+                color = "#FFA500";
+            } else {
+                status = "Very poor air quality";
+                color = "#FF6B6B";
+            }
+            
+            statusElement.textContent = status;
+            statusElement.style.color = color;
+        });
+    </script>
+</body>
+</html>

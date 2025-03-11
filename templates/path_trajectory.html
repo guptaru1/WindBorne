@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balloon Path Trajectory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .trajectory-info {
+            background: #333;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .altitude-chart {
+            background: #333;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Balloon Path Trajectory {{ 'for ' + continent if continent else '' }}</h1>
+        
+        <!-- Map container -->
+        <div id="map"></div>
+
+        <!-- Trajectory Info -->
+        <div class="trajectory-info">
+            <h2>Trajectory Information</h2>
+            <div id="trajectoryStats"></div>
+        </div>
+
+        <!-- Altitude Chart -->
+        <div class="altitude-chart">
+            <div id="altitudeChart"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+        
+        // Add balloon trajectory
+        const balloonPath = {{ balloon_history|tojson }};
+        if (balloonPath && balloonPath.length > 0) {
+            // Create line coordinates
+            const pathCoords = balloonPath.map(point => [point.latitude, point.longitude]);
+            
+            // Draw path line
+            L.polyline(pathCoords, {
+                color: '#ff4444',
+                weight: 3,
+                opacity: 0.8
+            }).addTo(map);
+
+            // Add markers for start and current positions
+            const startPoint = pathCoords[0];
+            const currentPoint = pathCoords[pathCoords.length - 1];
+
+            // Start marker (green)
+            L.circleMarker(startPoint, {
+                radius: 8,
+                fillColor: '#00ff00',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).bindPopup(`Start Position (${balloonPath[0].hour} hours ago)`).addTo(map);
+
+            // Current marker (red)
+            L.circleMarker(currentPoint, {
+                radius: 8,
+                fillColor: '#ff0000',
+                color: '#fff',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).bindPopup('Current Position').addTo(map);
+
+            // Add altitude markers along the path
+            balloonPath.forEach((point, index) => {
+                if (index !== 0 && index !== balloonPath.length - 1) {
+                    L.circleMarker([point.latitude, point.longitude], {
+                        radius: 4,
+                        fillColor: '#ffffff',
+                        color: '#fff',
+                        weight: 1,
+                        opacity: 0.6,
+                        fillOpacity: 0.6
+                    }).bindPopup(`Hour: -${point.hour}<br>Altitude: ${point.altitude.toFixed(1)}m`).addTo(map);
+                }
+            });
+
+            // Fit map to show entire path
+            map.fitBounds(pathCoords);
+
+            // Update trajectory stats
+            const totalDistance = calculateTotalDistance(pathCoords);
+            const avgAltitude = balloonPath.reduce((sum, point) => sum + point.altitude, 0) / balloonPath.length;
+            const altitudeChange = balloonPath[balloonPath.length - 1].altitude - balloonPath[0].altitude;
+
+            document.getElementById('trajectoryStats').innerHTML = `
+                <div class="row">
+                    <div class="col-md-4">
+                        <h5>Total Distance</h5>
+                        <p>${totalDistance.toFixed(1)} km</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Average Altitude</h5>
+                        <p>${avgAltitude.toFixed(1)} m</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h5>Altitude Change</h5>
+                        <p>${altitudeChange > 0 ? '+' : ''}${altitudeChange.toFixed(1)} m</p>
+                    </div>
+                </div>
+            `;
+
+            // Create altitude chart
+            const altitudeData = {
+                x: balloonPath.map(point => -point.hour),
+                y: balloonPath.map(point => point.altitude),
+                type: 'scatter',
+                name: 'Altitude',
+                line: { color: '#ff7f0e' }
+            };
+            
+            Plotly.newPlot('altitudeChart', [altitudeData], {
+                title: 'Altitude Over Time',
+                paper_bgcolor: '#333',
+                plot_bgcolor: '#333',
+                font: { color: '#fff' },
+                xaxis: { 
+                    title: 'Hours Ago',
+                    gridcolor: '#666',
+                    autorange: 'reversed'
+                },
+                yaxis: { 
+                    title: 'Altitude (m)',
+                    gridcolor: '#666'
+                }
+            });
+        } else {
+            document.getElementById('trajectoryStats').innerHTML = `
+                <div class="alert alert-warning">
+                    No trajectory data available for this balloon.
+                </div>
+            `;
+        }
+
+        // Helper function to calculate total distance
+        function calculateTotalDistance(coords) {
+            let totalDistance = 0;
+            for (let i = 1; i < coords.length; i++) {
+                totalDistance += getDistanceFromLatLonInKm(
+                    coords[i-1][0], coords[i-1][1],
+                    coords[i][0], coords[i][1]
+                );
+            }
+            return totalDistance;
+        }
+
+        // Helper function to calculate distance between two points
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the earth in km
+            const dLat = deg2rad(lat2-lat1);
+            const dLon = deg2rad(lon2-lon1); 
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2); 
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI/180);
+        }
+    </script>
+</body>
+</html> 

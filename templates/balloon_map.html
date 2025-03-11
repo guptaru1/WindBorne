@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WindBorne - Balloon Map</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <!-- Sidebar Menu -->
+    <div class="sidebar" id="sidebar">
+        <button class="close-btn" onclick="toggleSidebar()">&times;</button>
+        <a href="/">Home</a>
+        <a href="/balloon-map" class="active">Balloon Map</a>
+        <a href="/farmer-insights">Farmer Insights</a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Menu Button -->
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+
+        <div class="container">
+            <h1 class="text-center mb-4">Interactive Balloon Map</h1>
+            <div class="card bg-dark">
+                <div class="card-body">
+                    <div id="balloon-map" style="height: 80vh; position: relative;">
+                        <div class="loading-container" id="loading-spinner">
+                            <div class="loading-spinner"></div>
+                            <p class="mt-3 text-light">Loading balloon data...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Sidebar toggle function
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.querySelector('.main-content');
+            
+            if (sidebar.style.width === '250px') {
+                sidebar.style.width = '0';
+                mainContent.style.marginLeft = '0';
+            } else {
+                sidebar.style.width = '250px';
+                mainContent.style.marginLeft = '250px';
+            }
+        }
+
+        // Show/hide loading spinner
+        function setLoading(isLoading) {
+            document.getElementById('loading-spinner').style.display = isLoading ? 'block' : 'none';
+        }
+
+        // Fetch and display balloon data
+        async function fetchBalloonData() {
+            setLoading(true);
+            try {
+                const response = await fetch('/api/balloon-data');
+                const data = await response.json();
+                
+                // Filter out any data points containing NaN values
+                const filteredData = data.chart_data.map(trace => ({
+                    ...trace,
+                    x: trace.x.filter(x => !isNaN(x)),
+                    y: trace.y.filter(y => !isNaN(y)),
+                    z: trace.z.filter(z => !isNaN(z))
+                })).filter(trace => trace.x.length > 0);
+
+                Plotly.newPlot('balloon-map', filteredData, {
+                    ...data.layout,
+                    paper_bgcolor: '#212529',
+                    plot_bgcolor: '#212529',
+                    font: { color: '#ffffff' }
+                });
+            } catch (error) {
+                console.error('Error fetching balloon data:', error);
+                document.getElementById('balloon-map').innerHTML = `
+                    <div class="alert alert-danger m-3" role="alert">
+                        Error loading balloon data. Please try again later.
+                    </div>
+                `;
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchBalloonData();
+            setInterval(fetchBalloonData, 300000); // Update every 5 minutes
+        });
+    </script>
+</body>
+</html> 

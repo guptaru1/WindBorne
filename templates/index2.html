@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WindBorne Insights</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <!-- Sidebar Menu -->
+    <div class="sidebar" id="sidebar">
+        <button class="close-btn" onclick="toggleSidebar()">&times;</button>
+        <a href="/" class="active">Home</a>
+        <a href="/balloon-map">Balloon Map</a>
+        <a href="/farmer-insights">Farmer Insights</a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Menu Button -->
+        <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+
+        <!-- Hero Section -->
+        <div class="hero-section">
+            <div id="windmill-container"></div>
+            <h1 class="main-title">WindBorne Insights</h1>
+            <p class="subtitle">Explore Weather Data & Agricultural Insights</p>
+        </div>
+
+        <!-- Buttons Section -->
+        <div class="buttons-container">
+            <a href="/balloon-map" class="action-button">
+                <span class="button-text">Interactive Balloon Map</span>
+                <span class="button-description">Explore real-time balloon trajectories in 3D</span>
+            </a>
+            <a href="/farmer-insights" class="action-button">
+                <span class="button-text">Farmer Insights</span>
+                <span class="button-description">Get agricultural recommendations based on weather data</span>
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/windmill.js') }}"></script>
+</body>
+</html> 

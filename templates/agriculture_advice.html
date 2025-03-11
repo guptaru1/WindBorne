@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="agriculture-container">
+    <div class="location-header">
+        <h2>Agricultural Advisory for {{ location.name }}, {{ location.country }}</h2>
+    </div>
+
+    <!-- Current Conditions Summary -->
+    <div class="conditions-grid">
+        <div class="condition-card">
+            <h3>Weather Conditions</h3>
+            <div class="data-point">
+                <i class="fas fa-temperature-high"></i>
+                Temperature Trend: {{ balloon_data.temperature }}°C
+            </div>
+            <div class="data-point">
+                <i class="fas fa-wind"></i>
+                Wind Speed: {{ balloon_data.wind_speed }} m/s
+            </div>
+            <div class="data-point">
+                <i class="fas fa-tachometer-alt"></i>
+                Pressure: {{ balloon_data.pressure }} hPa
+            </div>
+        </div>
+
+        <div class="condition-card">
+            <h3>Air Quality</h3>
+            <div class="data-point">
+                <i class="fas fa-smog"></i>
+                CO2 Level: {{ balloon_data.co2 }} ppm
+            </div>
+            <div class="data-point">
+                <i class="fas fa-dust"></i>
+                Dust Level: {{ balloon_data.dust }} μg/m³
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Generated Advice -->
+    <div class="advice-section">
+        <h3>Agricultural Recommendations</h3>
+        <div class="advice-content">
+            {{ advice|safe }}
+        </div>
+    </div>
+
+    <!-- 24h Trend Visualization -->
+    <div class="trends-section">
+        <h3>24-Hour Trends</h3>
+        <div id="trendsChart"></div>
+    </div>
+</div>
+
+<style>
+.agriculture-container {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.conditions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.condition-card {
+    background: #333;
+    border-radius: 10px;
+    padding: 20px;
+    color: white;
+}
+
+.data-point {
+    margin: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.advice-section {
+    background: #333;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+    color: white;
+}
+
+.trends-section {
+    background: #333;
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+    height: 400px;
+}
+</style>
+
+<script>
+// Create trends visualization using Plotly
+const trendsData = {{ balloon_data|tojson }};
+
+// Plot 24h trends
+Plotly.newPlot('trendsChart', [{
+    x: trendsData.time,
+    y: trendsData.temperature,
+    name: 'Temperature',
+    type: 'scatter'
+}, {
+    x: trendsData.time,
+    y: trendsData.wind_speed,
+    name: 'Wind Speed',
+    type: 'scatter',
+    yaxis: 'y2'
+}], {
+    paper_bgcolor: '#333',
+    plot_bgcolor: '#333',
+    font: { color: '#fff' },
+    xaxis: { gridcolor: '#666' },
+    yaxis: { gridcolor: '#666', title: 'Temperature (°C)' },
+    yaxis2: { gridcolor: '#666', title: 'Wind Speed (m/s)', overlaying: 'y', side: 'right' }
+});
+</script>
+{% endblock %} 

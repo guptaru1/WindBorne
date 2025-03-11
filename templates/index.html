@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WindBorne Insights</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .hero-section {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #balloon-earth-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            overflow: hidden;
+            top: 0;
+            left: 0;
+        }
+
+        #balloon-earth-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .main-title {
+            font-size: 3.5rem;
+            z-index: 2;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            z-index: 2;
+            margin-top: 1rem;
+            position: relative;
+        }
+
+        .instructions {
+            font-size: 1.2rem;
+            z-index: 2;
+            margin-top: 1rem;
+            color: #fff;
+            text-align: center;
+            max-width: 800px;
+            line-height: 1.6;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 1rem;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .content-section {
+            min-height: 100vh;
+            padding: 2rem;
+            background: #222222;  /* Dark grey background */
+            color: #fff;
+        }
+
+        .balloon-selector {
+            margin: 2rem 0;
+            padding: 1rem;
+            background: #333333;  /* Dark grey background */
+            border-radius: 10px;
+            color: white;
+        }
+
+        .balloon-selector select {
+            background: #444444;
+            color: white;
+            border: 1px solid #555555;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .action-button {
+            padding: 1.5rem;
+            border: none;
+            border-radius: 10px;
+            background: #007bff;  /* Return to blue for buttons */
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .action-button:hover {
+            transform: translateY(-5px);
+            background: #0056b3;  /* Darker blue on hover */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .map-container {
+            background: #333;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 2rem 0;
+        }
+
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1;
+            position: relative;
+            background: #f8f9fa;
+        }
+
+        .leaflet-container {
+            background: #f8f9fa !important;
+        }
+
+        .weather-forecast {
+            text-align: center;
+            padding: 2rem;
+            background: #333333;
+            border-radius: 10px;
+            margin: 2rem 0;
+        }
+
+        .map-container h2 {
+            margin-bottom: 1rem;
+            color: #fff;
+            text-align: center;
+        }
+
+        .stats-container {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .continent-card {
+            background: #333;
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            transition: transform 0.3s ease;
+        }
+
+        .continent-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .continent-stats {
+            background: #333;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        .chat-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+
+        .chat-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            max-width: 600px;
+            background: #333;
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+        }
+
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #222;
+            border-radius: 5px;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            background: #444;
+            color: white;
+        }
+
+        .chat-message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .bot-message {
+            background: #2c3e50;
+        }
+
+        .user-message {
+            background: #34495e;
+            text-align: right;
+        }
+
+        .close-chat {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div id="balloon-earth-container"></div>
+        <h1 class="main-title">WindBorne Insights</h1>
+        <p class="subtitle">Explore Weather Data & Agricultural Insights</p>
+        <p class="instructions">Choose a continent from the dropdown below and click anywhere in that region to view temperature forecasts for the next 7 days</p>
+    </div>
+
+    <div class="content-section">
+        <div class="balloon-selector">
+            <h2>Select Region</h2>
+            <div class="row">
+                <div class="col-md-4">
+                    <select id="continentSelect" class="form-select mb-3" onchange="loadContinentData()">
+                        <option value="">All Continents</option>
+                        <option value="North America">North America</option>
+                        <option value="South America">South America</option>
+                        <option value="Europe">Europe</option>
+                        <option value="Africa">Africa</option>
+                        <option value="Asia">Asia</option>
+                        <option value="Oceania">Oceania</option>
+                        <option value="Antarctica">Antarctica</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <div id="continentStats" class="stats-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button class="action-button" onclick="navigateToPathTrajectory()">
+                View Path Trajectory
+            </button>
+            <button class="action-button" onclick="navigateToWeather()" 
+                    title="Select continent and click on a location on the map to see its weather for the next 7 days">
+                Weather Prediction
+            </button>
+            <button class="action-button" onclick="showAgricultureAdvice()">
+                Agriculture Advice
+            </button>
+            <button class="action-button" onclick="downloadCSV()">
+                Download CSV
+            </button>
+        </div>
+
+        <!-- Map -->
+        <div class="map-container">
+            <h2>Live Balloon Locations</h2>
+            <div id="map"></div>
+        </div>
+
+        <!-- Continent Statistics -->
+        <div class="continent-stats mt-4">
+            <h2>Continent Overview</h2>
+            <div id="continentOverview" class="row g-4 mt-2"></div>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chatModal" class="chat-modal">
+        <div class="chat-container">
+            <button class="close-chat" onclick="closeChatbot()">&times;</button>
+            <div class="chat-messages" id="chatMessages">
+                <!-- Messages will be added here -->
+            </div>
+            <div class="chat-input">
+                <input type="text" id="userInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+                <button class="action-button" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move scripts to end of body -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://leaflet.github.io/Leaflet.heat/dist/leaflet-heat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script>
+        var map = L.map('map').setView([20, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18
+        }).addTo(map);
+        var heatLayer = null;
+        var markers = L.layerGroup().addTo(map);
+        var lastCacheTime = 0;
+        const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+        const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
+        let loadingData = false;
+
+        // Initialize Three.js scene
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ 
+            alpha: true,
+            antialias: true
+        });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('balloon-earth-container').appendChild(renderer.domElement);
+
+        // Create Earth sphere with better texture
+        const geometry = new THREE.SphereGeometry(2.5, 64, 64);
+        const textureLoader = new THREE.TextureLoader();
+        
+        // Load Earth texture with normal and specular maps
+        const earthTexture = textureLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+        const earthNormal = textureLoader.load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg');
+        const earthSpecular = textureLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg');
+        
+        const material = new THREE.MeshPhongMaterial({
+            map: earthTexture,
+            normalMap: earthNormal,
+            specularMap: earthSpecular,
+            shininess: 25,
+            specular: new THREE.Color(0x4d4d4d)
+        });
+        
+        const earth = new THREE.Mesh(geometry, material);
+        earth.rotation.x = 0.2; // Tilt the Earth slightly
+        scene.add(earth);
+
+        // Add ambient light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        // Add directional light (sun-like)
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 3, 5);
+        scene.add(directionalLight);
+
+        // Add point light for highlights
+        const pointLight = new THREE.PointLight(0xffffff, 0.5);
+        pointLight.position.set(-5, 3, -5);
+        scene.add(pointLight);
+
+        camera.position.z = 6;
+
+        // Animation function
+        function animate() {
+            requestAnimationFrame(animate);
+            earth.rotation.y += 0.001;
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Start animation
+        animate();
+
+        // Force map to recalculate size
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
+
+        // Add loading indicator
+        const loadingIndicator = document.createElement('div');
+        loadingIndicator.className = 'loading-indicator';
+        loadingIndicator.style.display = 'none';
+        loadingIndicator.innerHTML = `
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        `;
+        document.body.appendChild(loadingIndicator);
+
+        function showLoading() {
+            loadingIndicator.style.display = 'block';
+        }
+
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+        }
+
+        function shouldRefreshData(cacheTime) {
+            if (!cacheTime) return true;
+            
+            const currentDate = new Date().setHours(0, 0, 0, 0);
+            const cacheDate = new Date(cacheTime * 1000).setHours(0, 0, 0, 0);
+            return currentDate > cacheDate;
+        }
+
+        async function checkHealthStatus() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+                
+                if (data.cache_status === 'invalid') {
+                    console.log('Cache is invalid, refreshing data...');
+                    await loadContinentData(true);
+                }
+            } catch (error) {
+                console.error('Health check failed:', error);
+            }
+        }
+
+        async function loadContinentData(forceRefresh = false) {
+            if (loadingData) return;
+            loadingData = true;
+            
+            try {
+                showLoading();
+                const selectedContinent = document.getElementById('continentSelect').value;
+                
+                // Fetch balloon data with continent filter
+                const params = selectedContinent ? `?continent=${selectedContinent}` : '';
+                const response = await fetch('/get_balloon_path' + params);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Update heatmap with balloon locations
+                if (data.hour0_balloons && data.hour0_balloons.length > 0) {
+                    updateHeatmap(data.hour0_balloons);
+                    console.log('Updated heatmap with', data.hour0_balloons.length, 'balloons');
+                } else {
+                    console.log('No balloon data available');
+                }
+
+                // Update continent statistics
+                if (data.continents) {
+                    updateContinentStats(data.continents);
+                    console.log('Updated continent stats');
+                }
+
+                // Force map update
+                map.invalidateSize();
+                
+            } catch (error) {
+                console.error("Error loading data:", error);
+                showError("Failed to load balloon data. Please try again later.");
+            } finally {
+                loadingData = false;
+                hideLoading();
+            }
+        }
+
+        function showError(message) {
+            // Create or update error message element
+            let errorDiv = document.getElementById('errorMessage');
+            if (!errorDiv) {
+                errorDiv = document.createElement('div');
+                errorDiv.id = 'errorMessage';
+                errorDiv.className = 'alert alert-danger alert-dismissible fade show';
+                document.querySelector('.content-section').prepend(errorDiv);
+            }
+            errorDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+        }
+
+        function updateHeatmap(balloons) {
+            // Clear existing markers and heatmap
+            markers.clearLayers();
+            if (heatLayer) {
+                map.removeLayer(heatLayer);
+            }
+
+            if (!balloons || balloons.length === 0) {
+                console.log('No balloon data to display');
+                return;
+            }
+
+            console.log('Creating heatmap with', balloons.length, 'balloons');
+
+            const heatData = balloons.map(balloon => [
+                balloon.latitude,
+                balloon.longitude,
+                1
+            ]);
+
+            // Create new heatmap layer with adjusted settings
+            heatLayer = L.heatLayer(heatData, {
+                radius: 25,
+                blur: 15,
+                maxZoom: 10,
+                max: 1.0,
+                minOpacity: 0.3,
+                gradient: {
+                    0.2: 'blue',
+                    0.4: 'cyan',
+                    0.6: 'lime',
+                    0.8: 'yellow',
+                    1.0: 'red'
+                }
+            }).addTo(map);
+
+            // Add markers for each balloon
+            balloons.forEach(balloon => {
+                const marker = L.marker([balloon.latitude, balloon.longitude])
+                    .bindPopup(`
+                        <b>Altitude:</b> ${balloon.altitude.toFixed(1)}m<br>
+                        <b>Continent:</b> ${balloon.continent}
+                    `);
+                markers.addLayer(marker);
+            });
+
+            // Fit map to show all balloons
+            if (heatData.length > 0) {
+                const bounds = L.latLngBounds(heatData.map(point => [point[0], point[1]]));
+                map.fitBounds(bounds);
+            }
+        }
+
+        // Add click handler to map
+        map.on('click', async function(e) {
+            try {
+                showLoading();
+                const selectedContinent = document.getElementById('continentSelect').value;
+                const params = new URLSearchParams({
+                    clicked_lat: e.latlng.lat,
+                    clicked_lon: e.latlng.lng
+                });
+                if (selectedContinent) {
+                    params.append('continent', selectedContinent);
+                }
+                
+                const response = await fetch(`/get_balloon_path?${params}`);
+                const data = await response.json();
+                
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    showError("No balloon found near this location");
+                }
+            } catch (error) {
+                console.error("Error handling map click:", error);
+                showError("Failed to process location selection");
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // Check health status periodically
+        setInterval(checkHealthStatus, CHECK_INTERVAL);
+
+        // Initialize map on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // Force map to recalculate size
+                map.invalidateSize();
+                await loadContinentData(true);
+            } catch (error) {
+                console.error("Initialization error:", error);
+                showError("Failed to initialize application");
+            }
+        });
+
+        // Add error boundary
+        window.addEventListener('error', function(event) {
+            console.error('Global error:', event.error);
+            showError("An unexpected error occurred.");
+        });
+
+        // Add some CSS for the loading indicator
+        const style = document.createElement('style');
+        style.textContent = `
+            .loading-indicator {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 1000;
+                background: rgba(0, 0, 0, 0.7);
+                padding: 20px;
+                border-radius: 10px;
+            }
+        `;
+        document.head.appendChild(style);
+
+        function updateContinentStats(stats) {
+            const overview = document.getElementById('continentOverview');
+            overview.innerHTML = '';
+
+            Object.entries(stats).forEach(([continent, data]) => {
+                // Only show continents with valid data
+                if (data && typeof data.count === 'number' && typeof data.avg_altitude === 'number') {
+                    const card = document.createElement('div');
+                    card.className = 'col-md-4 mb-4';
+                    card.innerHTML = `
+                        <div class="continent-card">
+                            <h3>${continent}</h3>
+                            <div class="row mt-3">
+                                <div class="col-6">
+                                    <div class="stat-value">${data.count || 0}</div>
+                                    <div class="stat-label">Active Balloons</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="stat-value">${Math.round(data.avg_altitude || 0)}</div>
+                                    <div class="stat-label">Avg. Altitude (m)</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    overview.appendChild(card);
+                }
+            });
+
+            // If no data available, show message
+            if (overview.children.length === 0) {
+                overview.innerHTML = `
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            No balloon data available for any continent
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function focusContinent(continent) {
+            document.getElementById('continentSelect').value = continent;
+            loadContinentData();
+        }
+
+        function downloadCSV() {
+            showLoading();
+            fetch('/download_weather_csv')
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(data => {
+                            throw new Error(data.error || 'Failed to download CSV');
+                        });
+                    }
+                    return response.blob();
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'balloon_weather_data.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                })
+                .catch(error => {
+                    console.error('Error downloading CSV:', error);
+                    showError(error.message);
+                })
+                .finally(() => {
+                    hideLoading();
+                });
+        }
+
+        function navigateToPathTrajectory() {
+            const selectedContinent = document.getElementById('continentSelect').value;
+            if (selectedContinent) {
+                window.location.href = `/path-trajectory?continent=${encodeURIComponent(selectedContinent)}`;
+            } else {
+                showError("Please select a continent first");
+            }
+        }
+
+        function navigateToWeather() {
+            const selectedContinent = document.getElementById('continentSelect').value;
+            if (selectedContinent) {
+                window.location.href = `/weather-forecast?continent=${encodeURIComponent(selectedContinent)}`;
+            } else {
+                showError("Please select a continent first");
+            }
+        }
+
+        function showAgricultureAdvice() {
+            document.getElementById('chatModal').style.display = 'block';
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML = `
+                <div class="chat-message bot-message">
+                    Hi there! I am your expert agriculture advisor. 
+                    Please tell me your country and what fruit you are trying to grow.
+                </div>
+            `;
+        }
+
+        function closeChatbot() {
+            document.getElementById('chatModal').style.display = 'none';
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const userInput = document.getElementById('userInput');
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // Add user message to chat
+            const chatMessages = document.getElementById('chatMessages');
+            chatMessages.innerHTML += `
+                <div class="chat-message user-message">${message}</div>
+            `;
+
+            // Clear input
+            userInput.value = '';
+
+            // Show loading indicator
+            chatMessages.innerHTML += `
+                <div class="chat-message bot-message" id="loadingMessage">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    Analyzing your request...
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/agriculture-advice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await response.json();
+                
+                // Remove loading message
+                document.getElementById('loadingMessage').remove();
+
+                // Add bot response
+                chatMessages.innerHTML += `
+                    <div class="chat-message bot-message">${data.response}</div>
+                `;
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loadingMessage').remove();
+                chatMessages.innerHTML += `
+                    <div class="chat-message bot-message">Sorry, I encountered an error. Please try again.</div>
+                `;
+            }
+
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
