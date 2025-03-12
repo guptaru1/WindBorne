@@ -20,7 +20,7 @@ class ChatModel():
             genai.configure(api_key=api_key)
             
             try:
-                self.generator = genai.GenerativeModel('gemini-pro')
+                self.generator = genai.GenerativeModel('gemini-2.0-flash-thinking-exp')
             except Exception as e:
                 logger.error(f"Error initializing Gemini: {str(e)}")
                 raise
