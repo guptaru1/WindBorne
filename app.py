@@ -1017,7 +1017,18 @@ def agriculture_advice():
     try:
         message = request.json.get('message', '').lower()
         
-        # Check if this is a follow-up question by looking for specific phrases
+        # Update system prompt to include formatting
+        system_prompt = """You are an expert agricultural advisor. Format your responses with:
+1. Clear section headers with emojis
+2. Bullet points for lists
+3. Important values in bold
+4. Clear spacing between sections
+5. Organized environmental data at the top
+6. Practical, actionable advice with specific quantities
+
+Use markdown-style formatting and emojis to make the information clear and engaging."""
+
+        # Check if this is a follow-up question
         follow_up_phrases = ['explain', 'elaborate', 'tell', 'what', 'how', 'why', 'please', 'can you']
         is_follow_up = any(message.startswith(phrase) for phrase in follow_up_phrases) or 'more' in message
         
@@ -1028,16 +1039,24 @@ def agriculture_advice():
             environmental_data = session.get('environmental_data', {})
             current_crop = session.get('current_crop', '')
             location_name = session.get('location_name', '')
+            print("coming in here" ,message)
+            #user_prompt = f"""Previous context about growing {current_crop} in {location_name}:
+#{previous_context}
+
+#Follow-up question: {message}
+
+#Please answer the follow-up question in a concise manner, with no more than 200 words."""
             
-            user_prompt = f"""Previous context about growing {current_crop} in {location_name}:
-{previous_context}
+            user_prompt = f"""Previous context For growing {current_crop} in {location_name} previous context {previous_context} :
 
-Follow-up question: {message}
+User asks: {message}
 
-Please provide more details or clarification based on the environmental data and previous agricultural advice."""
+Please answer this specific question only, with practical and actionable advice."""
+            
+            print("my message adi", message)
 
             # Initialize ChatModel and get response
-            chat_model = ChatModel("opt")
+            chat_model = ChatModel("gemini")
             llm_response = chat_model.chat(system_prompt, user_prompt)
             
             # Update chat history
@@ -1059,7 +1078,7 @@ Please provide more details or clarification based on the environmental data and
             crop = parts[1]
 
             try:
-                # Use Open-Meteo Geocoding API
+                # Geocoding API call
                 geocoding_api = "https://geocoding-api.open-meteo.com/v1/search"
                 params = {
                     "name": country,
@@ -1078,61 +1097,102 @@ Please provide more details or clarification based on the environmental data and
                 location = location_data["results"][0]
                 weather_service = OpenMeteo()
                 
-                # Fetch weather and air quality data
+                # Fetch data with error handling
                 ensemble_data = weather_service.fetch_ensemble_forecast(
                     location["latitude"],
                     location["longitude"]
-                )
+                ) or {'hourly': {'soil_conditions': {'deep_moisture': [0.3]}}, 'metadata': {'avg_temperature_30d': 20, 'total_evapotranspiration_30d': 2}}
                 
                 air_quality = weather_service.fetch_air_quality(
                     location["latitude"],
                     location["longitude"]
-                )
+                ) or {'carbon_dioxide': [400], 'nitrogen_dioxide': [20]}
                 
-                # Extract data
+                # Extract data with safe defaults
                 hourly_data = ensemble_data.get('hourly', {})
                 metadata = ensemble_data.get('metadata', {})
+                soil_moisture = hourly_data.get('soil_conditions', {}).get('deep_moisture', [0.3])
                 location_name = f"{location['name']}, {location.get('country', '')}"
                 
-                # Store all the data in session
+                # Calculate averages safely
+                def safe_average(values, default):
+                    try:
+                        return sum(values)/len(values) if values else default
+                    except (TypeError, ZeroDivisionError):
+                        return default
+
+                # Store data in session with safe defaults
                 session['location_name'] = location_name
                 session['current_crop'] = crop
                 session['environmental_data'] = {
-                    'temperature': metadata['avg_temperature_30d'],
-                    'evapotranspiration': metadata['total_evapotranspiration_30d'],
-                    'soil_moisture': sum(hourly_data['soil_conditions']['deep_moisture'])/len(hourly_data['soil_conditions']['deep_moisture']),
-                    'co2': sum(air_quality['carbon_dioxide'])/len(air_quality['carbon_dioxide']),
-                    'no2': sum(air_quality['nitrogen_dioxide'])/len(air_quality['nitrogen_dioxide'])
+                    'temperature': metadata.get('avg_temperature_30d', 20),
+                    'evapotranspiration': metadata.get('total_evapotranspiration_30d', 2),
+                    'soil_moisture': safe_average(soil_moisture, 0.3),
+                    'co2': safe_average(air_quality.get('carbon_dioxide', [400]), 400),
+                    'no2': safe_average(air_quality.get('nitrogen_dioxide', [20]), 20)
                 }
                 
-                system_prompt = """You are an agricultural expert. Analyze the provided weather, soil moisture, and air quality data 
-                to give specific growing advice. Focus on using the exact numbers from the data to recommend planting times and care instructions."""
-                
-                user_prompt = f"""Based on the environmental data for growing {crop} in {location_name}:
+                # Format the prompt with safe values
+                env_data = session['environmental_data']
+                user_prompt = f"""As an agricultural expert, create a detailed farming plan for growing {crop} in {location_name} based on the current environmental data:
 
 ENVIRONMENTAL CONDITIONS:
-Temperature: {metadata['avg_temperature_30d']:.1f}°C
-Evapotranspiration: {metadata['total_evapotranspiration_30d']:.1f} mm/day
-Soil Moisture (40-100cm depth): {sum(hourly_data['soil_conditions']['deep_moisture'])/len(hourly_data['soil_conditions']['deep_moisture']):.2f} m³/m³
-CO2 Levels: {sum(air_quality['carbon_dioxide'])/len(air_quality['carbon_dioxide']):.2f} ppm
-NO2 Levels: {sum(air_quality['nitrogen_dioxide'])/len(air_quality['nitrogen_dioxide']):.2f} μg/m³
+• Temperature: {env_data['temperature']:.1f}°C
+• Evapotranspiration Rate: {env_data['evapotranspiration']:.1f} mm/day
+• Soil Moisture: {env_data['soil_moisture']:.2f} m³/m³
+• CO2 Levels: {env_data['co2']:.2f} ppm
+• NO2 Levels: {env_data['no2']:.2f} μg/m³
 
-Please provide specific advice for {crop} cultivation:
-1. Based on the temperature of {metadata['avg_temperature_30d']:.1f}°C, which months are optimal for planting?
-2. Given the soil moisture level of {sum(hourly_data['soil_conditions']['deep_moisture'])/len(hourly_data['soil_conditions']['deep_moisture']):.2f} m³/m³, what irrigation schedule do you recommend?
-3. With evapotranspiration at {metadata['total_evapotranspiration_30d']:.1f} mm/day, how should watering be adjusted?
-4. What fertilizers would work best in these soil conditions?
-5. How do the current CO2 and NO2 levels affect growth?"""
+Please provide a comprehensive cultivation plan covering:
 
-                # Store prompts in session
+1. PLANTING TIMELINE
+   • Optimal planting months based on the current temperature of {env_data['temperature']:.1f}°C
+   • Growth stages timeline
+   • Expected harvest period
+
+2. SOIL & IRRIGATION MANAGEMENT
+   • Soil preparation techniques for {crop}
+   • Irrigation schedule considering the soil moisture of {env_data['soil_moisture']:.2f} m³/m³
+   • Water management adjustments for {env_data['evapotranspiration']:.1f} mm/day evapotranspiration
+
+3. FERTILIZATION STRATEGY
+   • Recommended fertilizer types and NPK ratios based on soil moisture
+   • Application schedule and quantities
+   • Organic vs synthetic fertilizer recommendations
+
+4. ENVIRONMENTAL OPTIMIZATION
+   • How to optimize growth with CO2 levels of {env_data['co2']:.2f} ppm
+   • Managing NO2 exposure of {env_data['no2']:.2f} μg/m³
+   • Climate control suggestions if needed
+
+5. CROP CARE PROTOCOL
+   • Spacing and support systems
+   • Pruning and training methods
+   • Pest and disease prevention specific to {location_name}
+   • Companion planting recommendations
+
+6. HARVEST & POST-HARVEST
+   • Indicators for harvest readiness
+   • Proper harvesting techniques
+   • Storage recommendations
+
+Please provide specific, actionable advice that a farmer can implement, including quantities and timelines where applicable."""
+
+                # Update the system prompt to be more specific
+                system_prompt = """You are an expert agricultural advisor with deep knowledge of crop science and farming practices. 
+Analyze the provided environmental data to create detailed, practical farming plans. Focus on:
+1. Precise recommendations based on the exact environmental measurements
+2. Region-specific agricultural practices
+3. Sustainable and efficient farming methods
+4. Clear, actionable steps with specific quantities and timelines
+5. Scientific explanations for your recommendations"""
+                
                 session['system_prompt'] = system_prompt
                 session['chat_history'] = user_prompt
                 
-                # Get LLM response
-                chat_model = ChatModel("opt")
+                chat_model = ChatModel("gemini")
                 llm_response = chat_model.chat(system_prompt, user_prompt)
                 
-                # Update chat history with the response
                 session['chat_history'] += f"\n\nAnswer: {llm_response}"
                 
                 return jsonify({
@@ -1148,7 +1208,7 @@ Please provide specific advice for {crop} cultivation:
     except Exception as e:
         logger.error(f"Error in agriculture advice: {str(e)}")
         return jsonify({"response": "Sorry, I encountered an error. Please try again."}), 500
-
+    
 # Add error handlers
 @app.errorhandler(404)
 def not_found_error(error):
