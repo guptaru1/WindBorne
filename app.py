@@ -942,7 +942,7 @@ def download_weather_csv():
         continent = request.args.get('continent')
         if continent:
             hour0_data = [b for b in hour0_data if b['continent'] == continent]
-        hour0_data = sorted(hour0_data, key=lambda x: (x['continent'], x['latitude']))[:50]
+        hour0_data = sorted(hour0_data, key=lambda x: (x['continent'], x['latitude']))[:20]
         si = StringIO()
         writer = csv.writer(si)
         writer.writerow([

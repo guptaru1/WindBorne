@@ -259,6 +259,32 @@
             font-size: 20px;
             cursor: pointer;
         }
+
+        .balloon-marker {
+            font-size: 20px;
+            text-align: center;
+            line-height: 25px;
+            background: transparent;
+            border: none;
+        }
+
+        .leaflet-popup-content {
+            text-align: center;
+        }
+
+        .leaflet-popup-content button {
+            margin-top: 8px;
+            padding: 5px 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .leaflet-popup-content button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -538,43 +564,33 @@
                 return;
             }
 
-            console.log('Creating heatmap with', balloons.length, 'balloons');
-
-            const heatData = balloons.map(balloon => [
-                balloon.latitude,
-                balloon.longitude,
-                1
-            ]);
-
-            // Create new heatmap layer with adjusted settings
-            heatLayer = L.heatLayer(heatData, {
-                radius: 25,
-                blur: 15,
-                maxZoom: 10,
-                max: 1.0,
-                minOpacity: 0.3,
-                gradient: {
-                    0.2: 'blue',
-                    0.4: 'cyan',
-                    0.6: 'lime',
-                    0.8: 'yellow',
-                    1.0: 'red'
-                }
-            }).addTo(map);
+            // Create custom balloon icon
+            const balloonIcon = L.divIcon({
+                html: '🎈',
+                className: 'balloon-marker',
+                iconSize: [25, 25],
+                iconAnchor: [12, 25],
+                popupAnchor: [0, -25]
+            });
 
             // Add markers for each balloon
             balloons.forEach(balloon => {
-                const marker = L.marker([balloon.latitude, balloon.longitude])
-                    .bindPopup(`
+                const marker = L.marker([balloon.latitude, balloon.longitude], {
+                    icon: balloonIcon
+                }).bindPopup(`
+                    <div style="text-align: center;">
                         <b>Altitude:</b> ${balloon.altitude.toFixed(1)}m<br>
-                        <b>Continent:</b> ${balloon.continent}
-                    `);
+                        <button class="btn btn-primary mt-2" onclick="window.location.href='/weather-forecast?lat=${balloon.latitude}&lon=${balloon.longitude}'">
+                            View Weather
+                        </button>
+                    </div>
+                `);
                 markers.addLayer(marker);
             });
 
             // Fit map to show all balloons
-            if (heatData.length > 0) {
-                const bounds = L.latLngBounds(heatData.map(point => [point[0], point[1]]));
+            if (balloons.length > 0) {
+                const bounds = L.latLngBounds(balloons.map(b => [b.latitude, b.longitude]));
                 map.fitBounds(bounds);
             }
         }
