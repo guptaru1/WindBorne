@@ -242,6 +242,55 @@
 
         .bot-message {
             background: #2c3e50;
+            white-space: pre-wrap;
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        /* Headers */
+        .bot-message h2 {
+            color: #3498db;
+            font-size: 1.8em;
+            margin: 25px 0 15px 0;
+            border-bottom: 1px solid #34495e;
+            padding-bottom: 10px;
+        }
+
+        .bot-message h3 {
+            color: #2ecc71;
+            font-size: 1.4em;
+            margin: 20px 0 10px 0;
+        }
+
+        /* Lists and content */
+        .bot-message ul {
+            margin: 10px 0 10px 20px;
+            padding-left: 15px;
+        }
+
+        .bot-message li {
+            margin-bottom: 8px;
+        }
+
+        /* Emojis */
+        .bot-message .emoji {
+            font-size: 1.2em;
+            margin-right: 5px;
+        }
+
+        /* Horizontal rules */
+        .bot-message hr {
+            border: 0;
+            height: 1px;
+            background: #34495e;
+            margin: 20px 0;
+        }
+
+        /* Bold text */
+        .bot-message strong {
+            color: #e74c3c;
+            font-weight: bold;
         }
 
         .user-message {
@@ -293,7 +342,7 @@
         <div id="balloon-earth-container"></div>
         <h1 class="main-title">WindBorne Insights</h1>
         <p class="subtitle">Explore Weather Data & Agricultural Insights</p>
-        <p class="instructions">Choose a continent from the dropdown below and click anywhere in that region to view temperature forecasts for the next 7 days</p>
+        <p class="instructions">Welcome to WindBorne Insights! Hover over the buttons below to learn more about what each button offers.</p>
     </div>
 
     <div class="content-section">
@@ -813,9 +862,19 @@
                 // Remove loading message
                 document.getElementById('loadingMessage').remove();
 
-                // Add bot response
+                // Format and add bot response
+                const formattedResponse = data.response
+                    .replace(/\n\n/g, '<br><br>')  // Double line breaks
+                    .replace(/### (.*?)\n/g, '<h3>$1</h3>')  // H3 headers
+                    .replace(/## (.*?)\n/g, '<h2>$1</h2>')  // H2 headers
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
+                    .replace(/---/g, '<hr>')  // Horizontal rules
+                    .replace(/\* /g, '• ');  // Convert asterisks to bullets
+
                 chatMessages.innerHTML += `
-                    <div class="chat-message bot-message">${data.response}</div>
+                    <div class="chat-message bot-message">
+                        ${formattedResponse}
+                    </div>
                 `;
             } catch (error) {
                 console.error('Error:', error);
