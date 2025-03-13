@@ -1053,7 +1053,7 @@ User asks: {message}
 
 Please answer this specific question only, with practical and actionable advice."""
             
-            print("my message adi", message)
+      
 
             # Initialize ChatModel and get response
             chat_model = ChatModel("gemini")
