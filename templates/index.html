@@ -287,13 +287,15 @@
 
         .balloon-popup {
             text-align: center;
-            color: #333;
-            padding: 10px;
+            min-width: 150px;
         }
 
         .balloon-popup .altitude-info {
             margin-bottom: 10px;
             font-size: 14px;
+            padding: 5px;
+            background: #f8f9fa;
+            border-radius: 4px;
         }
 
         .balloon-popup button {
@@ -379,11 +381,10 @@
         }
 
         .balloon-marker {
-            font-size: 20px;
+            font-size: 24px;
             text-align: center;
-            line-height: 25px;
-            background: transparent;
-            border: none;
+            line-height: 30px;
+            cursor: pointer;
         }
 
         .leaflet-popup-content {
@@ -402,6 +403,19 @@
 
         .leaflet-popup-content button:hover {
             background-color: #0056b3;
+        }
+
+        .balloon-custom-popup .leaflet-popup-content-wrapper {
+            background: white;
+            color: #333;
+            border-radius: 8px;
+            padding: 0;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+        }
+
+        .balloon-custom-popup .leaflet-popup-content {
+            margin: 0;
+            padding: 10px;
         }
     </style>
 </head>
@@ -685,20 +699,23 @@
                 return;
             }
 
-            // Create custom balloon icon
+            // Create custom balloon icon with better styling
             const balloonIcon = L.divIcon({
                 html: '🎈',
                 className: 'balloon-marker',
-                iconSize: [25, 25],
-                iconAnchor: [12, 25],
-                popupAnchor: [0, -25]
+                iconSize: [30, 30],
+                iconAnchor: [15, 30],
+                popupAnchor: [0, -30]
             });
 
-            // Add markers for each balloon
+            // Add markers for each balloon with improved popup
             balloons.forEach(balloon => {
                 const marker = L.marker([balloon.latitude, balloon.longitude], {
                     icon: balloonIcon
-                }).bindPopup(`
+                });
+                
+                // Create popup with better styling
+                const popupContent = `
                     <div class="balloon-popup">
                         <div class="altitude-info">
                             <strong>Altitude:</strong> ${balloon.altitude.toFixed(1)}m
@@ -707,7 +724,21 @@
                             View Weather
                         </button>
                     </div>
-                `);
+                `;
+                
+                // Bind popup with options
+                marker.bindPopup(popupContent, {
+                    closeButton: true,
+                    closeOnClick: false,
+                    autoClose: false,
+                    className: 'balloon-custom-popup'
+                });
+
+                // Add click handler
+                marker.on('click', function(e) {
+                    this.openPopup();
+                });
+
                 markers.addLayer(marker);
             });
 
