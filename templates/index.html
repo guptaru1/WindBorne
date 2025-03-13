@@ -108,6 +108,47 @@
             transition: all 0.3s ease;
             text-align: center;
             text-decoration: none;
+            position: relative;
+        }
+
+        .action-button::before {
+            content: attr(title);
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.9);
+            color: #fff;
+            border-radius: 6px;
+            font-size: 14px;
+            white-space: pre-wrap;
+            max-width: 200px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+
+        .action-button::after {
+            content: '';
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 8px solid transparent;
+            border-top-color: rgba(0, 0, 0, 0.9);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .action-button:hover::before,
+        .action-button:hover::after {
+            opacity: 1;
+            visibility: visible;
+            bottom: 110%;
         }
 
         .action-button:hover {
@@ -369,17 +410,20 @@
 
         <!-- Action Buttons -->
         <div class="action-buttons">
-            <button class="action-button" onclick="navigateToPathTrajectory()">
+            <button class="action-button" onclick="navigateToPathTrajectory()"
+                    title="View predicted balloon paths and trajectories">
                 View Path Trajectory
             </button>
             <button class="action-button" onclick="navigateToWeather()" 
                     title="Select continent and click on a location on the map to see its weather for the next 7 days">
                 Weather Prediction
             </button>
-            <button class="action-button" onclick="showAgricultureAdvice()">
+            <button class="action-button" onclick="showAgricultureAdvice()"
+                    title="Get detailed agricultural advice based on weather data">
                 Agriculture Advice
             </button>
-            <button class="action-button" onclick="downloadCSV()" title="Download balloon and weather data as CSV">
+            <button class="action-button" onclick="downloadCSV()" 
+                    title="Download balloon and weather data as CSV">
                 Download CSV
             </button>
         </div>
@@ -862,17 +906,18 @@
                 // Remove loading message
                 document.getElementById('loadingMessage').remove();
 
-                // Format and add bot response
+                // Enhanced formatting for the response
                 const formattedResponse = data.response
-                    .replace(/\n\n/g, '<br><br>')  // Double line breaks
-                    .replace(/### (.*?)\n/g, '<h3>$1</h3>')  // H3 headers
-                    .replace(/## (.*?)\n/g, '<h2>$1</h2>')  // H2 headers
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')  // Bold text
-                    .replace(/---/g, '<hr>')  // Horizontal rules
-                    .replace(/\* /g, '• ');  // Convert asterisks to bullets
+                    .replace(/\n\n/g, '<br><br>')  // Add double line breaks
+                    .replace(/### (.*?)(?=\n|$)/g, '<h3 style="color: #2ecc71; margin: 20px 0 10px 0;">$1</h3>')  // Green headers
+                    .replace(/## (.*?)(?=\n|$)/g, '<h2 style="color: #3498db; margin: 25px 0 15px 0; border-bottom: 1px solid #34495e;">$1</h2>')  // Blue headers
+                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #e74c3c;">$1</strong>')  // Red bold text
+                    .replace(/---/g, '<hr style="border: 0; height: 1px; background: #34495e; margin: 20px 0;">')  // Nice horizontal rules
+                    .replace(/^\* (.*?)$/gm, '<li style="margin-bottom: 8px;">$1</li>')  // Format list items
+                    .replace(/(🌱|🌿|💧|📊|🌡️|💨|🏭|🌫️)/g, '<span style="font-size: 1.2em; margin-right: 5px;">$1</span>');  // Larger emojis
 
                 chatMessages.innerHTML += `
-                    <div class="chat-message bot-message">
+                    <div class="chat-message bot-message" style="line-height: 1.6; padding: 20px;">
                         ${formattedResponse}
                     </div>
                 `;
