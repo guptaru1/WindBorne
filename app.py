@@ -946,8 +946,11 @@ def download_weather_csv():
         if continent:
             hour0_data = [b for b in hour0_data if b['continent'] == continent]
         hour0_data = sorted(hour0_data, key=lambda x: (x['continent'], x['latitude']))[:20]
-        si = StringIO()
-        writer = csv.writer(si)
+
+        # Use BytesIO instead of StringIO for binary data
+        from io import BytesIO
+        output = BytesIO()
+        writer = csv.writer(output)
         writer.writerow([
             'Latitude (°)',
             'Longitude (°)',
@@ -991,24 +994,19 @@ def download_weather_csv():
                 logger.error(f"Error fetching weather data for balloon: {str(e)}")
                 continue
 
-        # Prepare the CSV for download
-        output = si.getvalue()
-        si.close()
-        
-        # Create a new StringIO object with the output
-        mem = StringIO()
-        mem.write(output)
-        mem.seek(0)
+        # Prepare the binary data
+        output.seek(0)
         
         # Generate timestamp and filename
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         filename = f'balloon_weather_data_{continent}_{timestamp}.csv' if continent else f'balloon_weather_data_{timestamp}.csv'
         
         return send_file(
-            mem,
+            output,
             mimetype='text/csv',
             as_attachment=True,
-            download_name=filename
+            download_name=filename,
+            max_age=0
         )
 
     except Exception as e:
