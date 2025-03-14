@@ -609,22 +609,23 @@ class BalloonDataCache:
 
     def refresh_data(self) -> bool:
         """Force refresh the cache data."""
-        with self._lock:
-            try:
-                self.logger.info("Refreshing balloon data cache...")
-                new_data = fetch_balloon_data(24)
-                if new_data is not None:
-                    self.data = new_data
-                    self.last_fetch_time = time.time()
-                    self.error_count = 0
-                    self.logger.info("Successfully refreshed balloon data cache")
-                    return True
-                return False
-            except Exception as e:
-                self.error_count += 1
-                self.last_error_time = time.time()
-                self.logger.error(f"Error refreshing cache: {str(e)}")
-                return False
+        if not self._lock.acquire(blocking=False):  # Non-blocking lock
+            self.logger.warning("Another refresh is in progress, skipping...")
+            return False
+        
+        try:
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            self.logger.info(f"[{current_time}] Refreshing balloon data cache...")
+            new_data = fetch_balloon_data(24)
+            if new_data is not None:
+                self.data = new_data
+                self.last_fetch_time = time.time()
+                self.error_count = 0
+                self.logger.info(f"[{current_time}] Successfully refreshed balloon data cache")
+                return True
+            return False
+        finally:
+            self._lock.release()  # Always release the lock
 
     def get_data(self) -> Optional[object]:
         """Get balloon data with automatic refresh if stale."""
