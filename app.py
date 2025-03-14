@@ -19,7 +19,7 @@ import threading
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 from chatmodel import ChatModel
-
+import os
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1233,4 +1233,5 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)  # Set debug=False for production
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port) # Set debug=False for production
