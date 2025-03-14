@@ -593,25 +593,56 @@ class BalloonDataCache:
     def __init__(self):
         self.data = None
         self.last_fetch_time = 0
-        self.cache_duration = 24 * 60 * 60  
+        self.cache_duration = 300 # 1 hour in seconds
         self.error_count = 0
         self.max_retries = 3
         self.last_error_time = 0
         self.error_cooldown = 300 
         self.logger = logging.getLogger(__name__)
-        self._lock = threading.Lock()  # Add thread safety
+        self._lock = threading.Lock()
 
     def is_cache_valid(self) -> bool:
         """Check if the cached data is still valid."""
-        if self.data is None:
-            return False
-        
-        # Check if we're within the same UTC day
         current_time = time.time()
-        current_day = datetime.utcfromtimestamp(current_time).date()
-        last_fetch_day = datetime.utcfromtimestamp(self.last_fetch_time).date()
-        
-        return current_day == last_fetch_day
+        # Cache is invalid if more than cache_duration has passed
+        return (current_time - self.last_fetch_time) < self.cache_duration
+
+    def refresh_data(self) -> bool:
+        """Force refresh the cache data."""
+        with self._lock:
+            try:
+                self.logger.info("Refreshing balloon data cache...")
+                new_data = fetch_balloon_data(24)
+                if new_data is not None:
+                    self.data = new_data
+                    self.last_fetch_time = time.time()
+                    self.error_count = 0
+                    self.logger.info("Successfully refreshed balloon data cache")
+                    return True
+                return False
+            except Exception as e:
+                self.error_count += 1
+                self.last_error_time = time.time()
+                self.logger.error(f"Error refreshing cache: {str(e)}")
+                return False
+
+    def get_data(self) -> Optional[object]:
+        """Get balloon data with automatic refresh if stale."""
+        with self._lock:
+            try:
+                # Check if cache needs refresh
+                if not self.is_cache_valid():
+                    self.logger.info("Cache is stale, attempting refresh...")
+                    if self.should_retry():
+                        self.refresh_data()
+                    else:
+                        self.logger.warning("Too many errors, using stale cache data")
+
+                return self.data
+
+            except Exception as e:
+                self.logger.error(f"Error in get_data: {str(e)}")
+                return self.data
 
     def should_retry(self) -> bool:
         if self.error_count >= self.max_retries:
@@ -622,55 +653,26 @@ class BalloonDataCache:
             return False
         return True
 
-    def get_data(self) -> Optional[object]:
-        """Get balloon data with error handling and logging."""
-        with self._lock:  # Ensure thread safety
-            try:
-                if not self.is_cache_valid():
-                    if not self.should_retry():
-                        self.logger.warning("Too many errors, using stale cache data")
-                        return self.data
-
-                    self.logger.info("Fetching fresh balloon data")
-                    new_data = fetch_balloon_data(24)
-                    
-                    if new_data is not None:
-                        self.data = new_data
-                        self.last_fetch_time = time.time()
-                        self.error_count = 0
-                        self.logger.info("Successfully updated balloon data cache")
-                    else:
-                        self.error_count += 1
-                        self.last_error_time = time.time()
-                        self.logger.error("Failed to fetch balloon data")
-
-                return self.data
-
-            except Exception as e:
-                self.error_count += 1
-                self.last_error_time = time.time()
-                self.logger.error(f"Error fetching balloon data: {str(e)}")
-                return self.data  # Return existing data if available
-
-    def force_refresh(self) -> bool:
-        """Force a refresh of the cache data."""
-        with self._lock:  # Ensure thread safety
-            try:
-                new_data = fetch_balloon_data(24)
-                if new_data is not None:
-                    self.data = new_data
-                    self.last_fetch_time = time.time()
-                    self.error_count = 0
-                    self.logger.info("Successfully forced balloon data cache refresh")
-                    return True
-                return False
-            except Exception as e:
-                self.logger.error(f"Error forcing cache refresh: {str(e)}")
-                return False
-
-# Initialize cache
 balloon_cache = BalloonDataCache()
-# Initialize the application
+
+# Set up scheduler for periodic cache refresh
+from apscheduler.schedulers.background import BackgroundScheduler
+
+def init_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        balloon_cache.refresh_data,
+        'interval',
+        minutes=5,
+        id='refresh_balloon_cache'
+    )
+    scheduler.start()
+    return scheduler
+
+# Initialize the scheduler
+scheduler = init_scheduler()
+
+# Update initialize_app to include scheduler status
 def initialize_app():
     try:
         logger.info("Initializing application cache...")
@@ -681,7 +683,8 @@ def initialize_app():
             logger.warning("Failed to initialize cache with data")
     except Exception as e:
         logger.error(f"Failed to initialize cache: {str(e)}")
-# Call initialization when creating the app
+
+
 initialize_app()
 @app.route('/health')
 def health_check():
