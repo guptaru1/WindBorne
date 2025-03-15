@@ -589,104 +589,42 @@ def fetch_balloon_data(hours=24):
             logger.error(f"Error in fetch_balloon_data: {str(e)}")
             return None
 
-class BalloonDataCache:
+class SimpleCache:
     def __init__(self):
         self.data = None
         self.last_fetch_time = 0
-        self.cache_duration = 300 # 1 hour in seconds
-        self.error_count = 0
-        self.max_retries = 3
-        self.last_error_time = 0
-        self.error_cooldown = 300 
+        self.cache_duration = 300  # 5 minutes in seconds
         self.logger = logging.getLogger(__name__)
-        self._lock = threading.Lock()
 
-    def is_cache_valid(self) -> bool:
-        """Check if the cached data is still valid."""
+    def get_data(self):
+        """Get data with automatic refresh if stale"""
         current_time = time.time()
-        # Cache is invalid if more than cache_duration has passed
+        
+        # Check if cache needs refresh
+        if self.data is None or (current_time - self.last_fetch_time) > self.cache_duration:
+            try:
+                self.logger.info("Cache is stale, refreshing data...")
+                new_data = fetch_balloon_data(24)  # Keep 24 hours for historical view
+                if new_data is not None:
+                    self.data = new_data
+                    self.last_fetch_time = current_time
+                    self.logger.info("Successfully refreshed cache data")
+            except Exception as e:
+                self.logger.error(f"Error refreshing cache: {str(e)}")
+                # Return existing data if refresh fails
+                if self.data is not None:
+                    return self.data
+                
+        return self.data
+
+    def is_cache_valid(self):
+        """Check if cache is valid - used by health endpoint"""
+        current_time = time.time()
         return (current_time - self.last_fetch_time) < self.cache_duration
 
-    def refresh_data(self) -> bool:
-        """Force refresh the cache data."""
-        if not self._lock.acquire(blocking=False):  # Non-blocking lock
-            self.logger.warning("Another refresh is in progress, skipping...")
-            return False
-        
-        try:
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            self.logger.info(f"[{current_time}] Refreshing balloon data cache...")
-            new_data = fetch_balloon_data(24)
-            if new_data is not None:
-                self.data = new_data
-                self.last_fetch_time = time.time()
-                self.error_count = 0
-                self.logger.info(f"[{current_time}] Successfully refreshed balloon data cache")
-                return True
-            return False
-        finally:
-            self._lock.release()  # Always release the lock
+# Initialize the simple cache
+balloon_cache = SimpleCache()
 
-    def get_data(self) -> Optional[object]:
-        """Get balloon data with automatic refresh if stale."""
-        with self._lock:
-            try:
-                # Check if cache needs refresh
-                if not self.is_cache_valid():
-                    self.logger.info("Cache is stale, attempting refresh...")
-                    if self.should_retry():
-                        self.refresh_data()
-                    else:
-                        self.logger.warning("Too many errors, using stale cache data")
-
-                return self.data
-
-            except Exception as e:
-                self.logger.error(f"Error in get_data: {str(e)}")
-                return self.data
-
-    def should_retry(self) -> bool:
-        if self.error_count >= self.max_retries:
-            # Check if we've waited long enough since the last error
-            if time.time() - self.last_error_time > self.error_cooldown:
-                self.error_count = 0  # Reset error count after cooldown
-                return True
-            return False
-        return True
-
-balloon_cache = BalloonDataCache()
-
-# Set up scheduler for periodic cache refresh
-from apscheduler.schedulers.background import BackgroundScheduler
-
-def init_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        balloon_cache.refresh_data,
-        'interval',
-        minutes=5,
-        id='refresh_balloon_cache'
-    )
-    scheduler.start()
-    return scheduler
-
-# Initialize the scheduler
-scheduler = init_scheduler()
-
-# Update initialize_app to include scheduler status
-def initialize_app():
-    try:
-        logger.info("Initializing application cache...")
-        data = balloon_cache.get_data()
-        if data is not None:
-            logger.info("Successfully initialized application cache")
-        else:
-            logger.warning("Failed to initialize cache with data")
-    except Exception as e:
-        logger.error(f"Failed to initialize cache: {str(e)}")
-
-
-initialize_app()
 @app.route('/health')
 def health_check():
     """Health check endpoint for monitoring."""
@@ -696,8 +634,7 @@ def health_check():
     return jsonify({
         "status": "healthy",
         "cache_status": cache_status,
-        "cache_age_seconds": cache_age,
-        "error_count": balloon_cache.error_count
+        "cache_age_seconds": cache_age
     })
 
 @app.route('/')
