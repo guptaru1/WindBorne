@@ -23,7 +23,10 @@ import os
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()  # This ensures logs go to stdout which Render captures
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -541,12 +544,14 @@ def fetch_balloon_data(hours=24):
     '''
     Fetches ballon data from our windborne API SYSTEM
     '''
+    logger.info(f"Starting to fetch balloon data for {hours} hours")
     base_url = "https://a.windbornesystems.com/treasure/"
     flight_data = FlightData()
     
     with requests.Session() as session:
         def fetch_hour_data(hour):
             url = f"{base_url}{str(hour).zfill(2)}.json"
+            logger.info(f"Fetching data for hour {hour} from {url}")
             try:
                 response = session.get(url, timeout=5)
                 response.raise_for_status()
@@ -554,14 +559,16 @@ def fetch_balloon_data(hours=24):
                 
                 try:
                     data = json.loads(text)
+                    logger.info(f"Successfully parsed JSON data for hour {hour}")
                 except json.JSONDecodeError:
-                    # Quick string parsing without multiple splits
+                    logger.info(f"Parsing raw text data for hour {hour}")
                     coords_list = [
                         [float(x) for x in coords.strip('[]').split(',')]
                         for coords in text.replace('\n', '').replace(' ', '').strip('[]').split('],[')
                         if coords.strip('[]')
                     ]
                     data = [coord for coord in coords_list if len(coord) == 3]
+                    logger.info(f"Processed {len(data)} balloon coordinates for hour {hour}")
                 
                 return hour, data
             except Exception as e:
@@ -599,6 +606,7 @@ class SimpleCache:
     def get_data(self):
         """Get data with automatic refresh if stale"""
         current_time = time.time()
+        self.logger.info(f"Cache age: {current_time - self.last_fetch_time:.2f} seconds")
         
         # Check if cache needs refresh
         if self.data is None or (current_time - self.last_fetch_time) > self.cache_duration:
@@ -608,7 +616,9 @@ class SimpleCache:
                 if new_data is not None:
                     self.data = new_data
                     self.last_fetch_time = current_time
-                    self.logger.info("Successfully refreshed cache data")
+                    self.logger.info(f"Successfully refreshed cache data with {sum(len(balloons) for balloons in new_data.sorted_data.values())} total balloons")
+                else:
+                    self.logger.error("Failed to fetch new data")
             except Exception as e:
                 self.logger.error(f"Error refreshing cache: {str(e)}")
                 # Return existing data if refresh fails
@@ -646,9 +656,11 @@ def get_balloon_path():
     '''
     Returns live location of all balloons using most recent data
     '''
+    logger.info("Handling get_balloon_path request")
     try:
         flight_data = balloon_cache.get_data()
         if flight_data is None:
+            logger.error("No balloon data available from cache")
             return jsonify({
                 "error": "No balloon data available",
                 "hour0_balloons": [],
@@ -657,7 +669,10 @@ def get_balloon_path():
             }), 503
 
         recent_hour = flight_data.get_most_recent_hour()
+        logger.info(f"Most recent hour of data: {recent_hour}")
+        
         if recent_hour is None:
+            logger.warning("No recent hour found in flight data")
             return jsonify({
                 "hour0_balloons": [],
                 "continents": {},
@@ -666,7 +681,10 @@ def get_balloon_path():
 
         parsed_data = flight_data.to_dict()
         continent = request.args.get('continent')
+        logger.info(f"Processing request for continent: {continent}")
+        
         live_balloon_locations = parsed_data[recent_hour]
+        logger.info(f"Found {len(live_balloon_locations)} balloons for hour {recent_hour}")
         
         clicked_lat = request.args.get('clicked_lat', type=float)
         clicked_lon = request.args.get('clicked_lon', type=float)
@@ -986,12 +1004,6 @@ Use markdown-style formatting and emojis to make the information clear and engag
 
 #Please answer the follow-up question in a concise manner, with no more than 200 words."""
             
-            user_prompt = f"""Previous context For growing {current_crop} in {location_name} previous context {previous_context} :
-
-User asks: {message}
-
-Please answer this specific question only, with practical and actionable advice."""
-            
       
 
             # Initialize ChatModel and get response
@@ -1171,5 +1183,7 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
+    logger.info("Starting Flask application")
     port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port) # Set debug=False for production
+    logger.info(f"Server starting on port {port}")
+    app.run(host='0.0.0.0', port=port)
