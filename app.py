@@ -601,48 +601,89 @@ class SimpleCache:
     def __init__(self):
         self.data = None
         self.last_fetch_time = 0
+        logger.info("Initializing BackgroundScheduler")
         self.scheduler = BackgroundScheduler()
         # Run every hour instead of every 5 minutes
-        self.scheduler.add_job(self.refresh_cache, 'interval', hours=1)
-        self.scheduler.start()
-        logger.info("Cache scheduler initialized to refresh every hour")
+        try:
+            self.scheduler.add_job(
+                self.refresh_cache, 
+                'interval', 
+                hours=1,
+                id='refresh_cache_job',
+                next_run_time=datetime.now()  # Run immediately on startup
+            )
+            self.scheduler.start()
+            logger.info("Cache scheduler started successfully")
+            logger.info(f"Next scheduled refresh: {self.scheduler.get_job('refresh_cache_job').next_run_time}")
+        except Exception as e:
+            logger.error(f"Failed to start scheduler: {str(e)}")
 
     def refresh_cache(self):
         try:
+            logger.info("Starting scheduled cache refresh")
             new_data = fetch_balloon_data(24)
             if new_data is not None:
                 self.data = new_data
                 self.last_fetch_time = time.time()
-                logger.info("Cache refreshed by scheduler")
+                logger.info(f"Cache refreshed successfully at {datetime.fromtimestamp(self.last_fetch_time)}")
+                logger.info(f"Next refresh scheduled for: {self.scheduler.get_job('refresh_cache_job').next_run_time}")
+            else:
+                logger.error("Cache refresh failed: fetch_balloon_data returned None")
         except Exception as e:
-            logger.error(f"Scheduled cache refresh failed: {e}")
+            logger.error(f"Scheduled cache refresh failed: {e}", exc_info=True)
 
     def get_data(self):
         """Get data from cache, triggering a refresh if needed"""
+        current_time = time.time()
+        logger.info(f"Cache access - Age: {current_time - self.last_fetch_time:.1f} seconds")
+        
         if self.data is None:
-            # Initial load if cache is empty
             logger.info("Cache is empty, performing initial load")
             self.refresh_cache()
+        
+        if self.scheduler.running:
+            logger.info("Scheduler is running")
+            next_run = self.scheduler.get_job('refresh_cache_job').next_run_time
+            logger.info(f"Next scheduled refresh: {next_run}")
+        else:
+            logger.warning("Scheduler is not running!")
+            
         return self.data
 
     def is_cache_valid(self):
         """Check if cache is valid - used by health endpoint"""
-        return self.data is not None and self.last_fetch_time > 0
+        is_valid = self.data is not None and self.last_fetch_time > 0
+        logger.info(f"Cache validity check: {is_valid}")
+        return is_valid
 
 # Initialize the simple cache
+logger.info("Creating SimpleCache instance")
 balloon_cache = SimpleCache()
 
 @app.route('/health')
 def health_check():
     """Health check endpoint for monitoring."""
+    logger.info("Health check requested")
     cache_status = "valid" if balloon_cache.is_cache_valid() else "invalid"
     cache_age = time.time() - balloon_cache.last_fetch_time if balloon_cache.last_fetch_time > 0 else None
+    scheduler_status = "running" if balloon_cache.scheduler.running else "stopped"
     
-    return jsonify({
+    try:
+        next_refresh = balloon_cache.scheduler.get_job('refresh_cache_job').next_run_time
+    except Exception as e:
+        next_refresh = "unknown"
+        logger.error(f"Could not get next refresh time: {str(e)}")
+    
+    response_data = {
         "status": "healthy",
         "cache_status": cache_status,
-        "cache_age_seconds": cache_age
-    })
+        "cache_age_seconds": cache_age,
+        "scheduler_status": scheduler_status,
+        "next_scheduled_refresh": str(next_refresh)
+    }
+    
+    logger.info(f"Health check response: {response_data}")
+    return jsonify(response_data)
 
 @app.route('/')
 def index():
