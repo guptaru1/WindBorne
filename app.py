@@ -1050,7 +1050,7 @@ Use markdown-style formatting and emojis to make the information clear and engag
             # New conversation about a crop
             parts = message.split(' ', 1)
             if len(parts) < 2:
-                return jsonify({"response": "Please provide both a country and a crop (e.g., 'Spain apple') Unfortunatly at the moment I can't provide additional follow-ups."})
+                return jsonify({"response": "Please provide both a country and a crop (e.g., 'Spain apple'). Unfortunately at the moment I can't provide additional follow-ups."})
             
             country = parts[0]
             crop = parts[1]
