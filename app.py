@@ -14,7 +14,7 @@ import time
 import logging
 from datetime import datetime, timedelta
 import csv
-from io import StringIO
+from io import StringIO, BytesIO
 import threading
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
@@ -870,17 +870,21 @@ def path_trajectory():
 @app.route('/download_weather_csv')
 def download_weather_csv():
     try:
+        logger.info("Starting CSV download process")
         flight_data = balloon_cache.get_data()
         if flight_data is None:
+            logger.error("No balloon data available in cache")
             return jsonify({"error": "No balloon data available"}), 503
 
         parsed_data = flight_data.to_dict()
+        logger.info(f"Available hours in data: {list(parsed_data.keys())}")
         
         # Find hour 0 data, or earliest available hour
         hour0_data = None
         for hour in [0, 1, 2]:  # Prioritize first 3 hours
             if hour in parsed_data and parsed_data[hour]:
                 hour0_data = parsed_data[hour]
+                logger.info(f"Found data for hour {hour} with {len(parsed_data[hour])} balloons")
                 break
         
         if not hour0_data:
@@ -888,19 +892,29 @@ def download_weather_csv():
             for hour in range(3, 24):
                 if hour in parsed_data and parsed_data[hour]:
                     hour0_data = parsed_data[hour]
+                    logger.info(f"Found fallback data for hour {hour} with {len(parsed_data[hour])} balloons")
                     break
 
         if not hour0_data:
+            logger.error("No balloon data found in any hour")
             return jsonify({"error": "No balloon data found"}), 404
 
-        # Limit to 50 balloons and sort by continent
+        # Limit to 20 balloons and sort by continent
         continent = request.args.get('continent')
+        logger.info(f"Filtering for continent: {continent}")
+        
         if continent:
             hour0_data = [b for b in hour0_data if b['continent'] == continent]
+            logger.info(f"Found {len(hour0_data)} balloons for continent {continent}")
+        
+        if not hour0_data:
+            logger.error(f"No balloons found for continent: {continent}")
+            return jsonify({"error": f"No balloons found for continent: {continent}"}), 404
+            
         hour0_data = sorted(hour0_data, key=lambda x: (x['continent'], x['latitude']))[:20]
+        logger.info(f"Processing {len(hour0_data)} balloons for CSV")
 
-        # Use BytesIO instead of StringIO for binary data
-        from io import BytesIO
+        # Use BytesIO for binary data
         output = BytesIO()
         writer = csv.writer(output)
         writer.writerow([
@@ -916,20 +930,27 @@ def download_weather_csv():
         ])
 
         weather_service = OpenMeteo()
+        successful_rows = 0
+        
         for balloon in hour0_data:
             try:
+                logger.info(f"Fetching weather data for balloon at {balloon['latitude']}, {balloon['longitude']}")
                 weather_data = weather_service.fetch_data(
                     balloon['latitude'], 
                     balloon['longitude'], 
                     'weather'
                 )
                 
+                if not weather_data:
+                    logger.warning(f"No weather data returned for coordinates: {balloon['latitude']}, {balloon['longitude']}")
+                    continue
+                
                 # Get the first value from each weather parameter if available
-                temp = weather_data['temperature'][0] if weather_data and 'temperature' in weather_data else 'N/A'
-                wind = weather_data['wind_speed'][0] if weather_data and 'wind_speed' in weather_data else 'N/A'
-                pressure = weather_data['pressure'][0] if weather_data and 'pressure' in weather_data else 'N/A'
-                soil = weather_data['soil_moisture'][0] if weather_data and 'soil_moisture' in weather_data else 'N/A'
-                time = weather_data['time'][0] if weather_data and 'time' in weather_data else 'N/A'
+                temp = weather_data.get('temperature', ['N/A'])[0]
+                wind = weather_data.get('wind_speed', ['N/A'])[0]
+                pressure = weather_data.get('pressure', ['N/A'])[0]
+                soil = weather_data.get('soil_moisture', ['N/A'])[0]
+                time = weather_data.get('time', ['N/A'])[0]
                 
                 writer.writerow([
                     f"{balloon['latitude']:.4f}",
@@ -942,9 +963,15 @@ def download_weather_csv():
                     soil,
                     time
                 ])
+                successful_rows += 1
+                
             except Exception as e:
-                logger.error(f"Error fetching weather data for balloon: {str(e)}")
+                logger.error(f"Error processing balloon data: {str(e)}", exc_info=True)
                 continue
+
+        if successful_rows == 0:
+            logger.error("No data rows were successfully written to CSV")
+            return jsonify({"error": "Failed to generate CSV - no valid data"}), 500
 
         # Prepare the binary data
         output.seek(0)
@@ -952,6 +979,8 @@ def download_weather_csv():
         # Generate timestamp and filename
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         filename = f'balloon_weather_data_{continent}_{timestamp}.csv' if continent else f'balloon_weather_data_{timestamp}.csv'
+        
+        logger.info(f"Successfully created CSV with {successful_rows} rows")
         
         return send_file(
             output,
@@ -962,8 +991,8 @@ def download_weather_csv():
         )
 
     except Exception as e:
-        logger.error(f"Error generating CSV: {str(e)}")
-        return jsonify({"error": "Failed to generate CSV"}), 500
+        logger.error(f"Error generating CSV: {str(e)}", exc_info=True)
+        return jsonify({"error": f"Failed to generate CSV: {str(e)}"}), 500
 
 @app.route('/agriculture-advice', methods=['POST'])
 def agriculture_advice():
