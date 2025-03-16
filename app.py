@@ -602,9 +602,10 @@ class SimpleCache:
         self.data = None
         self.last_fetch_time = 0
         self.scheduler = BackgroundScheduler()
-        # Run every 5 minutes
-        self.scheduler.add_job(self.refresh_cache, 'interval', minutes=5)
+        # Run every hour instead of every 5 minutes
+        self.scheduler.add_job(self.refresh_cache, 'interval', hours=1)
         self.scheduler.start()
+        logger.info("Cache scheduler initialized to refresh every hour")
 
     def refresh_cache(self):
         try:
@@ -699,8 +700,7 @@ def get_balloon_path():
                     min_dist = dist
                     nearest = balloon
 
-            print("helllllooooo")
-            print(nearest)
+
             if nearest:
                 return jsonify({
                     "nearest_balloon": nearest,
@@ -1019,7 +1019,7 @@ Use markdown-style formatting and emojis to make the information clear and engag
             # New conversation about a crop
             parts = message.split(' ', 1)
             if len(parts) < 2:
-                return jsonify({"response": "Please provide both a country and a crop (e.g., 'Spain apple')"})
+                return jsonify({"response": "Please provide both a country and a crop (e.g., 'Spain apple') Unfortunatly at the moment I can't provide additional follow-ups."})
             
             country = parts[0]
             crop = parts[1]
