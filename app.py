@@ -914,9 +914,9 @@ def download_weather_csv():
         hour0_data = sorted(hour0_data, key=lambda x: (x['continent'], x['latitude']))[:20]
         logger.info(f"Processing {len(hour0_data)} balloons for CSV")
 
-        # Use BytesIO for binary data
-        output = BytesIO()
-        writer = csv.writer(output)
+        # First create string output
+        string_output = StringIO()
+        writer = csv.writer(string_output)
         writer.writerow([
             'Latitude (°)',
             'Longitude (°)',
@@ -973,7 +973,9 @@ def download_weather_csv():
             logger.error("No data rows were successfully written to CSV")
             return jsonify({"error": "Failed to generate CSV - no valid data"}), 500
 
-        # Prepare the binary data
+        # Convert string output to bytes
+        output = BytesIO()
+        output.write(string_output.getvalue().encode('utf-8'))
         output.seek(0)
         
         # Generate timestamp and filename
