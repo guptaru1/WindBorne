@@ -20,6 +20,7 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 from chatmodel import ChatModel
 import os
+from apscheduler.schedulers.background import BackgroundScheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -600,37 +601,32 @@ class SimpleCache:
     def __init__(self):
         self.data = None
         self.last_fetch_time = 0
-        self.cache_duration = 300  # 5 minutes in seconds
-        self.logger = logging.getLogger(__name__)
+        self.scheduler = BackgroundScheduler()
+        # Run every 5 minutes
+        self.scheduler.add_job(self.refresh_cache, 'interval', minutes=5)
+        self.scheduler.start()
+
+    def refresh_cache(self):
+        try:
+            new_data = fetch_balloon_data(24)
+            if new_data is not None:
+                self.data = new_data
+                self.last_fetch_time = time.time()
+                logger.info("Cache refreshed by scheduler")
+        except Exception as e:
+            logger.error(f"Scheduled cache refresh failed: {e}")
 
     def get_data(self):
-        """Get data with automatic refresh if stale"""
-        current_time = time.time()
-        self.logger.info(f"Cache age: {current_time - self.last_fetch_time:.2f} seconds")
-        
-        # Check if cache needs refresh
-        if self.data is None or (current_time - self.last_fetch_time) > self.cache_duration:
-            try:
-                self.logger.info("Cache is stale, refreshing data...")
-                new_data = fetch_balloon_data(24)  # Keep 24 hours for historical view
-                if new_data is not None:
-                    self.data = new_data
-                    self.last_fetch_time = current_time
-                    self.logger.info(f"Successfully refreshed cache data with {sum(len(balloons) for balloons in new_data.sorted_data.values())} total balloons")
-                else:
-                    self.logger.error("Failed to fetch new data")
-            except Exception as e:
-                self.logger.error(f"Error refreshing cache: {str(e)}")
-                # Return existing data if refresh fails
-                if self.data is not None:
-                    return self.data
-                
+        """Get data from cache, triggering a refresh if needed"""
+        if self.data is None:
+            # Initial load if cache is empty
+            logger.info("Cache is empty, performing initial load")
+            self.refresh_cache()
         return self.data
 
     def is_cache_valid(self):
         """Check if cache is valid - used by health endpoint"""
-        current_time = time.time()
-        return (current_time - self.last_fetch_time) < self.cache_duration
+        return self.data is not None and self.last_fetch_time > 0
 
 # Initialize the simple cache
 balloon_cache = SimpleCache()
